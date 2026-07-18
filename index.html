@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+
+<html>
+<head>
+<title>Silent Auction</title>
+
+<style>
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: 'Segoe UI', sans-serif;
+  background: linear-gradient(135deg, #0f0f0f, #1a1a1a);
+  color: white;
+}
+
+h1 {
+  text-align: center;
+  margin: 20px;
+  color: orange;
+}
+
+.container {
+  max-width: 900px;
+  margin: auto;
+  padding: 20px;
+}
+
+.card {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,165,0,0.3);
+  border-radius: 15px;
+  padding: 15px;
+  margin: 15px 0;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 0 15px rgba(255,165,0,0.2);
+}
+
+input {
+  width: 90%;
+  padding: 10px;
+  margin: 5px;
+  border-radius: 8px;
+  border: none;
+}
+
+button {
+  padding: 10px 15px;
+  margin: 5px;
+  border: none;
+  border-radius: 10px;
+  background: orange;
+  color: black;
+  font-weight: bold;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+button:hover {
+  background: #ffb84d;
+  transform: scale(1.05);
+}
+
+img {
+  width: 100%;
+  max-width: 250px;
+  border-radius: 10px;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+
+.hidden {
+  display: none;
+}
+</style>
+
+</head>
+<body>
+
+<h1>🔥 Silent Auction 🔥</h1>
+
+<div class="container">
+
+<div id="auth" class="card">
+  <h2>Login / Signup</h2>
+  <input id="user" placeholder="Username"><br>
+  <input id="pass" type="password" placeholder="Password"><br>
+  <button onclick="signup()">Signup</button>
+  <button onclick="login()">Login</button>
+</div>
+
+<div id="main" class="hidden">
+
+  <div class="card">
+    <h2 id="welcome"></h2>
+    <button onclick="logout()">Logout</button>
+  </div>
+
+  <div id="adminPanel" class="card hidden">
+    <h3>Admin Panel</h3>
+    <input id="itemName" placeholder="Item name"><br>
+    <input id="itemImg" placeholder="Image URL"><br>
+    <input id="itemExpiry" type="datetime-local"><br>
+    <button onclick="addItem()">Add Item</button>
+  </div>
+
+  <h2 style="text-align:center;">Auction Items</h2>
+  <div id="items" class="row"></div>
+
+</div>
+
+</div>
+
+<script>
+// CONFIG
+const OWNER = "DopeMan345";
+const REPO = "pbl-auction";
+const FILE = "data.json";
+const TOKEN = "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";
+
+let currentUser = null;
+let data = null;
+
+// LOAD
+async function loadData() {
+  let res = await fetch(`https://api.github.com/repos/${OWNER}/${REPO}/contents/${FILE}`);
+  let json = await res.json();
+  let content = atob(json.content);
+  data = JSON.parse(content);
+  data.sha = json.sha;
+}
+
+// SAVE
+async function saveData() {
+  let content = btoa(JSON.stringify(data, null, 2));
+
+  await fetch(`https://api.github.com/repos/${OWNER}/${REPO}/contents/${FILE}`, {
+    method: "PUT",
+    headers: {
+      "Authorization": "token " + TOKEN,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      message: "update auction",
+      content: content,
+      sha: data.sha
+    })
+  });
+}
+
+// SIGNUP
+async function signup() {
+  await loadData();
+
+  if (data.users.find(u => u.user === user.value)) {
+    alert("User exists");
+    return;
+  }
+
+  data.users.push({ user: user.value, pass: pass.value });
+  await saveData();
+  alert("Account created");
+}
+
+// LOGIN
+async function login() {
+  await loadData();
+
+  if (user.value === "BaxDaGoat1735" && pass.value === "@Bax1410!") {
+    currentUser = { name: user.value, admin: true };
+    start();
+    return;
+  }
+
+  let found = data.users.find(u => u.user === user.value && u.pass === pass.value);
+
+  if (!found) {
+    alert("Wrong login");
+    return;
+  }
+
+  currentUser = { name: user.value, admin: false };
+  start();
+}
+
+// START
+function start() {
+  auth.classList.add("hidden");
+  main.classList.remove("hidden");
+
+  welcome.innerText = "Welcome, " + currentUser.name;
+
+  if (currentUser.admin) {
+    adminPanel.classList.remove("hidden");
+  }
+
+  render();
+}
+
+// ADD ITEM
+async function addItem() {
+  await loadData();
+
+  data.items.push({
+    name: itemName.value,
+    img: itemImg.value,
+    expiry: itemExpiry.value,
+    highestBid: 0,
+    highestUser: "none"
+  });
+
+  await saveData();
+  render();
+}
+
+// RENDER
+async function render() {
+  await loadData();
+
+  let html = "";
+
+  data.items.forEach((item, i) => {
+    let time = new Date(item.expiry) - new Date();
+
+    html += `
+    <div class="card">
+      <h3>${item.name}</h3>
+      <img src="${item.img}">
+      <p>💰 $${item.highestBid}</p>
+      <p>👤 ${item.highestUser}</p>
+      <p>⏱ ${time > 0 ? Math.floor(time/1000)+"s left" : "ENDED"}</p>
+      ${
+        time > 0
+        ? `<input id="bid${i}" placeholder="Your bid">
+           <button onclick="bid(${i})">Place Bid</button>`
+        : `<b>🏆 Winner: ${item.highestUser}</b>`
+      }
+    </div>
+    `;
+  });
+
+  items.innerHTML = html;
+}
+
+// BID
+async function bid(i) {
+  await loadData();
+
+  let val = parseInt(document.getElementById("bid"+i).value);
+
+  if (!val || val <= data.items[i].highestBid) {
+    alert("Bid too low");
+    return;
+  }
+
+  data.items[i].highestBid = val;
+  data.items[i].highestUser = currentUser.name;
+
+  await saveData();
+  render();
+}
+
+function logout() {
+  location.reload();
+}
+
+// AUTO REFRESH
+setInterval(render, 4000);
+</script>
+
+</body>
+</html>
